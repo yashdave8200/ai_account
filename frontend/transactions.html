@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StatementAI — Transactions</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Playfair+Display:wght@500;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:      #0f1624;
+      --navy-2:    #141e30;
+      --navy-3:    #1c2a40;
+      --gold:      #c9a84c;
+      --gold-dim:  #a8883a;
+      --gold-faint:#c9a84c22;
+      --text:      #e4dfd4;
+      --muted:     #8a9bb8;
+      --border:    #2a3a55;
+      --red:       #e05c5c;
+      --green:     #4caf7d;
+      --radius:    12px;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--navy);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ── Navbar ─────────────────────────────────────────────────── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2.5rem;
+      height: 60px;
+      background: var(--navy-2);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--gold);
+      letter-spacing: 0.04em;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover { color: var(--gold); }
+
+    .btn-sm {
+      padding: 0.4rem 1rem;
+      border-radius: 999px;
+      border: 1px solid var(--gold-dim);
+      background: transparent;
+      color: var(--gold);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      text-decoration: none;
+    }
+
+    .btn-sm:hover { background: var(--gold); color: var(--navy); }
+
+    /* ── Page layout ─────────────────────────────────────────────── */
+    .page { max-width: 1100px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+    /* ── Page heading ────────────────────────────────────────────── */
+    .page-heading {
+      margin-bottom: 1.75rem;
+    }
+
+    .page-heading h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f0ebe0;
+      margin-bottom: 0.25rem;
+    }
+
+    .page-heading p {
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+
+    /* ── Summary card ────────────────────────────────────────────── */
+    .summary-card {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 1.25rem;
+    }
+
+    .summary-field {
+      background: var(--navy-2);
+      padding: 1.1rem 1.4rem;
+    }
+
+    .summary-field .label {
+      font-size: 0.72rem;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.3rem;
+    }
+
+    .summary-field .value {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--gold);
+    }
+
+    /* ── Stats strip ─────────────────────────────────────────────── */
+    .stats-strip {
+      display: flex;
+      gap: 2rem;
+      align-items: center;
+      background: var(--navy-3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 1.4rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .stat span { color: var(--text); font-weight: 600; }
+    .stat .debit  { color: var(--red); }
+    .stat .credit { color: var(--green); }
+
+    /* ── Table wrapper ───────────────────────────────────────────── */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead tr {
+      background: var(--navy-3);
+    }
+
+    thead th {
+      padding: 0.85rem 1.1rem;
+      text-align: left;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    thead th.num { text-align: right; }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--navy-3); }
+
+    tbody td {
+      padding: 0.85rem 1.1rem;
+      font-size: 0.875rem;
+      vertical-align: middle;
+    }
+
+    .td-date {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .td-desc { color: var(--text); max-width: 320px; }
+
+    .td-num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.85rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .td-debit  { color: var(--red); }
+    .td-credit { color: var(--green); }
+    .td-balance{ color: var(--gold); }
+    .td-null   { color: var(--border); }
+
+    /* ── Empty state ─────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 5rem 2rem;
+      color: var(--muted);
+    }
+
+    .empty-state .material-icons { font-size: 3rem; color: var(--border); }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* ── Actions ─────────────────────────────────────────────────── */
+    .actions {
+      margin-top: 2rem;
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      padding: 0.7rem 1.75rem;
+      border-radius: 999px;
+      background: var(--gold);
+      color: var(--navy);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-primary:hover { background: #d9b85c; }
+
+    .btn-outline {
+      padding: 0.7rem 1.75rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--gold);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border: 1px solid var(--gold-dim);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn-outline:hover { background: var(--gold); color: var(--navy); }
+
+    /* ── Tally result banner ─────────────────────────────────────── */
+    .tally-banner {
+      display: none;
+      margin-top: 1.25rem;
+      padding: 0.9rem 1.4rem;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      font-family: 'IBM Plex Mono', monospace;
+      border: 1px solid;
+    }
+
+    .tally-banner.success {
+      background: #4caf7d18;
+      border-color: #4caf7d55;
+      color: var(--green);
+    }
+
+    .tally-banner.error {
+      background: #e05c5c18;
+      border-color: #e05c5c55;
+      color: var(--red);
+    }
+
+    /* ── Tally config modal ───────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--navy-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 2rem;
+      width: min(480px, 90vw);
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+    }
+
+    .modal h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #f0ebe0;
+    }
+
+    .modal p.modal-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: -0.6rem;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .field-group label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .field-group input {
+      background: var(--navy-3);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.55rem 0.9rem;
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+
+    .field-group input:focus { border-color: var(--gold-dim); }
+
+    .modal-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      margin-top: 0.25rem;
+    }
+
+    .btn-cancel {
+      padding: 0.6rem 1.4rem;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .btn-cancel:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Footer ──────────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      padding: 1rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.04em;
+    }
+
+    footer a { color: var(--gold); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav>
+    <a class="logo" href="index.html">StatementAI</a>
+    <ul class="nav-links">
+      <li><a href="index.html" class="btn-sm">
+        <span class="material-icons" style="font-size:0.95rem;vertical-align:middle;">upload_file</span>
+        Upload New
+      </a></li>
+      <li><a href="http://localhost:8000/docs" target="_blank">API Docs</a></li>
+      <li><a href="http://localhost:8000/api/health" target="_blank">Health</a></li>
+    </ul>
+  </nav>
+
+  <!-- Page -->
+  <div class="page">
+
+    <div class="page-heading">
+      <h1>Transactions Extraction Results</h1>
+      <p>High-precision data extraction powered by GLM-OCR</p>
+    </div>
+
+    <!-- Summary card -->
+    <div class="summary-card" id="summaryCard">
+      <div class="summary-field">
+        <div class="label">Account Holder</div>
+        <div class="value" id="accountHolder">—</div>
+      </div>
+      <div class="summary-field">
+        <div class="label">Bank Name</div>
+        <div class="value" id="bankName">—</div>
+      </div>
+      <div class="summary-field">
+        <div class="label">Account Number</div>
+        <div class="value" id="accountNumber">—</div>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="stats-strip" id="statsStrip" style="display:none">
+      <div class="stat"><span id="txCount">0</span> transactions</div>
+      <div class="stat">Total Debit: <span class="debit" id="totalDebit">₹0</span></div>
+      <div class="stat">Total Credit: <span class="credit" id="totalCredit">₹0</span></div>
+    </div>
+
+    <!-- Table / empty state -->
+    <div class="table-wrap" id="tableWrap">
+      <div class="empty-state" id="emptyState">
+        <span class="material-icons">receipt_long</span>
+        <p>No transactions yet. Upload a bank statement to get started.</p>
+        <a href="index.html" class="btn-primary" style="margin-top:0.5rem;">Go to Upload</a>
+      </div>
+
+      <table id="txTable" style="display:none">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="num">Debit (DR)</th>
+            <th class="num">Credit (CR)</th>
+            <th class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions" id="actions" style="display:none">
+      <button class="btn-outline" id="csvBtn">
+        <span class="material-icons" style="font-size:1rem">download</span>
+        Export CSV
+      </button>
+      <button class="btn-primary" id="tallyBtn" style="background:var(--gold)">
+        <span class="material-icons" style="font-size:1rem">account_balance</span>
+        Push to Tally
+      </button>
+      <a href="index.html" class="btn-outline">
+        <span class="material-icons" style="font-size:1rem">upload_file</span>
+        Upload Another Statement
+      </a>
+    </div>
+
+    <!-- Tally result banner -->
+    <div class="tally-banner" id="tallyBanner"></div>
+
+  </div>
+
+  <!-- Tally config modal -->
+  <div class="modal-overlay" id="tallyModal">
+    <div class="modal">
+      <h2>Push to Tally ERP</h2>
+      <p class="modal-sub">Enter your Tally ledger configuration before pushing entries.</p>
+
+      <div class="field-group">
+        <label>Bank Ledger Name *</label>
+        <input type="text" id="cfgBankLedger" placeholder="e.g. HDFC Bank Current Account" />
+      </div>
+
+      <div class="field-group">
+        <label>Tally URL</label>
+        <input type="text" id="cfgTallyUrl" value="http://192.168.7.216:9000" />
+      </div>
+
+      <div class="field-group">
+        <label>Default Counterpart Ledger</label>
+        <input type="text" id="cfgDefaultLedger" value="Suspense Account" />
+      </div>
+
+      <div class="field-group">
+        <label>Company Name (optional)</label>
+        <input type="text" id="cfgCompany" placeholder="Leave blank to use active company" />
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-cancel" id="modalCancelBtn">Cancel</button>
+        <button class="btn-primary" id="modalPushBtn">
+          <span class="material-icons" style="font-size:1rem">send</span>
+          Push Entries
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    Powered by <a href="https://huggingface.co/spaces/prithivMLmods/GLM-OCR-Demo" target="_blank">GLM-OCR</a>
+    &nbsp;·&nbsp; HuggingFace Space
+  </footer>
+
+  <script>
+    const API_BASE = 'http://localhost:8000/api';
+
+    /* ── Load data ──────────────────────────────────────────────── */
+    async function loadData() {
+      // 1. Try sessionStorage (from upload redirect)
+      const cached = sessionStorage.getItem('statementResult');
+      if (cached) {
+        render(JSON.parse(cached).statement);
+        return;
+      }
+
+      // 2. Fall back to GET /transactions
+      try {
+        const res = await fetch(`${API_BASE}/transactions`);
+        if (res.ok) {
+          const data = await res.json();
+          render(data);
+        }
+        // 404 = no data yet; empty state already shown
+      } catch (_) {
+        // Network error — empty state stays
+      }
+    }
+
+    /* ── Render ─────────────────────────────────────────────────── */
+    function render(statement) {
+      if (!statement) return;
+
+      // Summary card
+      document.getElementById('accountHolder').textContent  = statement.account_holder  || '—';
+      document.getElementById('bankName').textContent       = statement.bank_name       || '—';
+      document.getElementById('accountNumber').textContent  = statement.account_number  || '—';
+
+      const txs = statement.transactions || [];
+      if (txs.length === 0) return;
+
+      // Stats
+      const totalDebit  = txs.reduce((s, t) => s + (t.debit  || 0), 0);
+      const totalCredit = txs.reduce((s, t) => s + (t.credit || 0), 0);
+
+      document.getElementById('txCount').textContent    = txs.length;
+      document.getElementById('totalDebit').textContent = fmt(totalDebit);
+      document.getElementById('totalCredit').textContent= fmt(totalCredit);
+      document.getElementById('statsStrip').style.display = 'flex';
+
+      // Table
+      const tbody = document.getElementById('txBody');
+      tbody.innerHTML = txs.map(t => `
+        <tr>
+          <td class="td-date">${t.date || '—'}</td>
+          <td class="td-desc">${escHtml(t.description || '—')}</td>
+          <td class="td-num ${t.debit  ? 'td-debit'  : 'td-null'}">${t.debit  ? fmt(t.debit)  : '—'}</td>
+          <td class="td-num ${t.credit ? 'td-credit' : 'td-null'}">${t.credit ? fmt(t.credit) : '—'}</td>
+          <td class="td-num td-balance">${t.balance != null ? fmt(t.balance) : '—'}</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('emptyState').style.display = 'none';
+      document.getElementById('txTable').style.display    = 'table';
+      document.getElementById('actions').style.display    = 'flex';
+
+      // CSV export wiring
+      document.getElementById('csvBtn').addEventListener('click', () => exportCsv(txs));
+    }
+
+    /* ── CSV export ─────────────────────────────────────────────── */
+    function exportCsv(txs) {
+      const header = 'Date,Description,Debit,Credit,Balance\n';
+      const rows = txs.map(t =>
+        [t.date || '', `"${(t.description || '').replace(/"/g, '""')}"`,
+         t.debit ?? '', t.credit ?? '', t.balance ?? ''].join(',')
+      ).join('\n');
+      const blob = new Blob([header + rows], { type: 'text/csv' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'transactions.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    /* ── Helpers ─────────────────────────────────────────────────── */
+    function fmt(n) {
+      return '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    loadData();
+
+    /* ── Tally integration ──────────────────────────────────────── */
+
+    // Cached statement data set by render()
+    let _currentStatement = null;
+
+    // Wire modal open/close after DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const tallyBtn      = document.getElementById('tallyBtn');
+      const modal         = document.getElementById('tallyModal');
+      const cancelBtn     = document.getElementById('modalCancelBtn');
+      const pushBtn       = document.getElementById('modalPushBtn');
+      const banner        = document.getElementById('tallyBanner');
+
+      if (tallyBtn) {
+        tallyBtn.addEventListener('click', () => {
+          // Pre-fill bank ledger from extracted bank name if available
+          const bankNameEl = document.getElementById('bankName');
+          const cfgBankLedger = document.getElementById('cfgBankLedger');
+          if (bankNameEl && cfgBankLedger && !cfgBankLedger.value) {
+            const bn = bankNameEl.textContent.trim();
+            if (bn && bn !== '—') cfgBankLedger.value = bn;
+          }
+          modal.classList.add('open');
+        });
+      }
+
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => modal.classList.remove('open'));
+      }
+
+      // Close modal when clicking outside
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) modal.classList.remove('open');
+        });
+      }
+
+      if (pushBtn) {
+        pushBtn.addEventListener('click', pushToTally);
+      }
+    });
+
+    // Override render to cache statement
+    const _origRender = render;
+    function render(statement) {
+      _currentStatement = statement;
+      _origRender(statement);
+    }
+
+    async function pushToTally() {
+      const banner   = document.getElementById('tallyBanner');
+      const pushBtn  = document.getElementById('modalPushBtn');
+      const modal    = document.getElementById('tallyModal');
+
+      const bankLedger    = document.getElementById('cfgBankLedger').value.trim();
+      const rawUrl        = document.getElementById('cfgTallyUrl').value.trim() || 'http://localhost:9000';
+      const defaultLedger = document.getElementById('cfgDefaultLedger').value.trim() || 'Suspense Account';
+      const company       = document.getElementById('cfgCompany').value.trim() || null;
+
+      if (!bankLedger) {
+        document.getElementById('cfgBankLedger').focus();
+        return;
+      }
+
+      if (!_currentStatement) {
+        showBanner('error', 'No statement data loaded. Please upload a bank statement first.');
+        modal.classList.remove('open');
+        return;
+      }
+
+      // Parse URL into base + port
+      let tallyUrl = rawUrl;
+      let tallyPort = 9000;
+      try {
+        const parsed = new URL(rawUrl);
+        tallyPort = parseInt(parsed.port, 10) || (parsed.protocol === 'https:' ? 443 : 80);
+        tallyUrl  = `${parsed.protocol}//${parsed.hostname}`;
+      } catch (_) {
+        // leave defaults
+      }
+
+      pushBtn.disabled = true;
+      pushBtn.textContent = 'Pushing…';
+
+      try {
+        const res = await fetch(`${API_BASE}/push-to-tally`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            statement: _currentStatement,
+            config: {
+              tally_url: tallyUrl,
+              tally_port: tallyPort,
+              bank_ledger_name: bankLedger,
+              default_ledger: defaultLedger,
+              company_name: company,
+            },
+          }),
+        });
+
+        const data = await res.json();
+
+        modal.classList.remove('open');
+
+        if (data.status === 'success') {
+          let detail = data.message;
+          if (data.result && data.result.error_details && data.result.error_details.length) {
+            detail += ' | Warnings: ' + data.result.error_details.join('; ');
+          }
+          showBanner('success', '✓ ' + detail);
+        } else {
+          let detail = data.message;
+          if (data.result && data.result.error_details && data.result.error_details.length) {
+            detail += ' — ' + data.result.error_details.join('; ');
+          }
+          showBanner('error', '✗ ' + detail);
+        }
+      } catch (err) {
+        modal.classList.remove('open');
+        showBanner('error', '✗ Network error: ' + err.message);
+      } finally {
+        pushBtn.disabled = false;
+        pushBtn.innerHTML = '<span class="material-icons" style="font-size:1rem">send</span> Push Entries';
+      }
+    }
+
+    function showBanner(type, message) {
+      const banner = document.getElementById('tallyBanner');
+      banner.className = 'tally-banner ' + type;
+      banner.textContent = message;
+      banner.style.display = 'block';
+      banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  </script>
+</body>
+</html>

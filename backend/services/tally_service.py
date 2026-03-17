@@ -1,10 +1,4 @@
-"""
-TallyService — pushes bank statement transactions to Tally ERP 9 / TallyPrime
-via its built-in HTTP XML API (default port 9000).
-
-No third-party Tally library is used; XML is built with Python's standard
-xml.etree.ElementTree and posted with httpx.
-"""
+"""TallyService — pushes bank statement transactions to Tally ERP via its HTTP XML API."""
 
 from __future__ import annotations
 
@@ -12,7 +6,6 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from datetime import date, datetime
-from typing import List
 
 import httpx
 
@@ -21,10 +14,7 @@ from backend.models.transaction import StatementData, Transaction
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Simple keyword → ledger name mapping
-# Extend this dict to recognise more narration patterns.
-# ---------------------------------------------------------------------------
+# Keyword patterns → ledger name for auto-detecting counterpart from transaction description
 _LEDGER_KEYWORDS: list[tuple[str, str]] = [
     (r"salary|payroll|sal\b",               "Salary Account"),
     (r"rent\b",                              "Rent Expense"),
@@ -45,85 +35,45 @@ class TallyService:
         self._config = config
         url = config.tally_url.rstrip('/')
         # Don't append port for ngrok/external URLs (they use standard 80/443)
-        if url in ("http://localhost", "http://127.0.0.1") or url.startswith("http://192.") or url.startswith("http://10."):
+        if url in ("http://localhost", "http://127.0.0.1") or url.startswith(("http://192.", "http://10.")):
             self._base_url = f"{url}:{config.tally_port}"
         else:
             self._base_url = url
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     async def push_statement(self, statement: StatementData) -> TallyVoucherResult:
-        """
-        Push all transactions in *statement* to Tally.
-        Batches all vouchers into a single HTTP POST for efficiency.
-        """
-        voucher_xmls: List[str] = []
+        """Push all transactions in *statement* to Tally as a single batch."""
+        voucher_xmls: list[str] = []
 
         for tx in statement.transactions:
             if tx.debit is None and tx.credit is None:
                 logger.warning("Skipping transaction with no debit/credit: %s", tx.description)
                 continue
-
-            counterpart = self._guess_counterpart_ledger(
-                tx.description or "", self._config.default_ledger
-            )
-            voucher_xmls.append(
-                self._build_voucher_xml(tx, self._config.bank_ledger_name, counterpart)
-            )
+            counterpart = self._guess_counterpart_ledger(tx.description or "", self._config.default_ledger)
+            voucher_xmls.append(self._build_voucher_xml(tx, self._config.bank_ledger_name, counterpart))
 
         if not voucher_xmls:
-            return TallyVoucherResult(
-                errors=1,
-                error_details=["No valid transactions found to push."],
-            )
+            return TallyVoucherResult(errors=1, error_details=["No valid transactions found to push."])
 
         result = await self._post_to_tally(self._build_envelope(voucher_xmls))
-        # Tally returns CREATED=1 as a success flag, not a voucher count.
-        # If no errors occurred, the actual count is the number of vouchers we sent.
+        # Tally returns CREATED=1 as a success flag, not a voucher count
         if result.errors == 0 and not result.error_details:
             result.created = len(voucher_xmls)
         return result
 
-    # ------------------------------------------------------------------
-    # XML builders
-    # ------------------------------------------------------------------
-
-    def _build_voucher_xml(
-        self,
-        tx: Transaction,
-        bank_ledger: str,
-        counterpart_ledger: str,
-    ) -> str:
-        """
-        Build a single <VOUCHER> XML string.
-
-        Receipt  (money in  / credit): Bank DR, Counterpart CR
-        Payment  (money out / debit):  Counterpart DR, Bank CR
-        """
-        is_receipt = (tx.credit is not None and (tx.credit or 0) > 0)
+    def _build_voucher_xml(self, tx: Transaction, bank_ledger: str, counterpart_ledger: str) -> str:
+        """Build a single <VOUCHER> XML string (Receipt for credits, Payment for debits)."""
+        is_receipt = tx.credit is not None and (tx.credit or 0) > 0
         voucher_type = "Receipt" if is_receipt else "Payment"
         amount = abs(tx.credit if is_receipt else (tx.debit or 0))
         formatted_date = self._format_date(tx.date)
         narration = (tx.description or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
         if is_receipt:
-            # Bank is the debit side (ISDEEMEDPOSITIVE = Yes means debit in Tally receipts)
-            first_ledger  = bank_ledger
-            first_positive = "Yes"
-            first_amount   = amount
-            second_ledger  = counterpart_ledger
-            second_positive = "No"
-            second_amount   = -amount
+            first_ledger, first_positive, first_amount = bank_ledger, "Yes", amount
+            second_ledger, second_positive, second_amount = counterpart_ledger, "No", -amount
         else:
-            # Counterpart is the debit side for payments
-            first_ledger   = counterpart_ledger
-            first_positive = "Yes"
-            first_amount   = amount
-            second_ledger  = bank_ledger
-            second_positive = "No"
-            second_amount   = -amount
+            first_ledger, first_positive, first_amount = counterpart_ledger, "Yes", amount
+            second_ledger, second_positive, second_amount = bank_ledger, "No", -amount
 
         return (
             f'<VOUCHER VCHTYPE="{voucher_type}" ACTION="Create">\n'
@@ -146,9 +96,8 @@ class TallyService:
             f"</VOUCHER>"
         )
 
-    def _build_envelope(self, voucher_xmls: List[str], from_date: str = "20250401", to_date: str = "20260331") -> str:
-        """Wrap all vouchers in a single Tally import envelope."""
-        # Each voucher must be wrapped in its own <TALLYMESSAGE> block
+    def _build_envelope(self, voucher_xmls: list[str], from_date: str = "20250401", to_date: str = "20260331") -> str:
+        """Wrap vouchers in a Tally import envelope — each voucher in its own <TALLYMESSAGE>."""
         tallymessages = "\n".join(
             f"      <TALLYMESSAGE>\n{xml}\n      </TALLYMESSAGE>"
             for xml in voucher_xmls
@@ -159,7 +108,7 @@ class TallyService:
             company_tag = f"\n        <SVCURRENTCOMPANY>{name}</SVCURRENTCOMPANY>"
 
         return (
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
             "<ENVELOPE>\n"
             "  <HEADER>\n"
             "    <VERSION>1</VERSION>\n"
@@ -181,10 +130,6 @@ class TallyService:
             "</ENVELOPE>"
         )
 
-    # ------------------------------------------------------------------
-    # HTTP
-    # ------------------------------------------------------------------
-
     async def _post_to_tally(self, xml_body: str) -> TallyVoucherResult:
         """POST the XML envelope to Tally and parse the response."""
         try:
@@ -193,10 +138,7 @@ class TallyService:
                 response = await client.post(
                     self._base_url,
                     content=xml_body.encode("utf-8"),
-                    headers={
-                        "Content-Type": "application/xml",
-                        "ngrok-skip-browser-warning": "true",
-                    },
+                    headers={"Content-Type": "application/xml", "ngrok-skip-browser-warning": "true"},
                 )
             response.raise_for_status()
             logger.debug("Tally raw response: %s", response.text)
@@ -206,77 +148,48 @@ class TallyService:
             msg = f"Tally is not running on {self._base_url}. Please start Tally and enable the HTTP server."
             logger.error(msg)
             return TallyVoucherResult(errors=1, error_details=[msg])
-
         except httpx.TimeoutException:
             msg = f"Connection to Tally timed out ({self._base_url})."
             logger.error(msg)
             return TallyVoucherResult(errors=1, error_details=[msg])
-
         except httpx.HTTPStatusError as exc:
             msg = f"Tally returned HTTP {exc.response.status_code}."
             logger.error(msg)
             return TallyVoucherResult(errors=1, error_details=[msg])
-
         except Exception as exc:  # noqa: BLE001
             msg = f"Unexpected error communicating with Tally: {exc}"
             logger.exception(msg)
             return TallyVoucherResult(errors=1, error_details=[msg])
 
-    # ------------------------------------------------------------------
-    # Response parsing
-    # ------------------------------------------------------------------
-
     def _parse_response(self, xml_text: str) -> TallyVoucherResult:
-        """
-        Parse Tally's import-result XML.
-
-        Tally typically returns something like:
-          <RESPONSE>
-            <CREATED>5</CREATED>
-            <ALTERED>0</ALTERED>
-            <ERRORS>0</ERRORS>
-            <LINEERROR>...</LINEERROR>
-          </RESPONSE>
-        """
+        """Parse Tally's XML import response."""
         try:
             root = ET.fromstring(xml_text)
         except ET.ParseError as exc:
             logger.warning("Could not parse Tally response XML: %s | raw: %.300s", exc, xml_text)
-            # If Tally returns non-XML (e.g. plain "OK"), treat as 1 created
             if "ok" in xml_text.lower() or "success" in xml_text.lower():
                 return TallyVoucherResult(created=1)
             return TallyVoucherResult(errors=1, error_details=[f"Unparseable response: {xml_text[:200]}"])
 
         def _int(tag: str) -> int:
             el = root.find(f".//{tag}")
-            if el is not None and el.text:
-                try:
-                    return int(el.text.strip())
-                except ValueError:
-                    pass
-            return 0
+            try:
+                return int(el.text.strip()) if el is not None and el.text else 0
+            except ValueError:
+                return 0
 
-        created = _int("CREATED")
-        altered = _int("ALTERED")
-        errors  = _int("ERRORS")
-
-        error_details: list[str] = [
+        error_details = [
             el.text.strip()
             for el in root.findall(".//LINEERROR")
-            if el.text and el.text.strip()
-            and "retry split" not in el.text.lower()
+            if el.text and el.text.strip() and "retry split" not in el.text.lower()
         ]
 
         return TallyVoucherResult(
-            created=created,
-            altered=altered,
-            errors=errors,
+            created=_int("CREATED"),
+            altered=_int("ALTERED"),
+            errors=_int("ERRORS"),
             error_details=error_details,
         )
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
 
     @staticmethod
     def _format_date(date_str: str | None) -> str:
@@ -290,10 +203,7 @@ class TallyService:
 
     @staticmethod
     def _guess_counterpart_ledger(description: str, default: str) -> str:
-        """
-        Match *description* against known keywords and return the best
-        ledger name. Falls back to *default* (usually "Suspense Account").
-        """
+        """Match description against known keywords; falls back to default ledger."""
         desc_lower = description.lower()
         for pattern, ledger in _LEDGER_KEYWORDS:
             if re.search(pattern, desc_lower):

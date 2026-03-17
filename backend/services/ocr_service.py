@@ -1,73 +1,35 @@
-"""
-OCR Service — uses the MinerU2.5 model via HuggingFace transformers pipeline.
-
-Workflow:
-  1. Accept one or more image file paths (PDF pages are pre-converted upstream).
-  2. Load the `opendatalab/MinerU2.5-2509-1.2B` image-text-to-text pipeline once
-     and cache it for the lifetime of the process.
-  3. Send each image with an extraction prompt asking for structured JSON output.
-  4. Aggregate text across all pages.
-  5. Parse the structured text into a StatementData object.
-
-Model:
-  opendatalab/MinerU2.5-2509-1.2B
-  Pipeline type: image-text-to-text
-"""
+"""OCR Service — uses OpenAI GPT-4o mini vision API to extract bank statement data."""
 
 from __future__ import annotations
 
-import asyncio
+import base64
 import json
 import logging
+import mimetypes
+import os
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
-from PIL import Image
+from openai import AsyncOpenAI
 
 from backend.models.transaction import StatementData, Transaction
 
 logger = logging.getLogger(__name__)
 
-# Model identifier
-MODEL_ID = "opendatalab/MinerU2.5-2509-1.2B"
-
-# Cached pipeline (loaded once on first use)
-_pipeline = None
-_pipeline_loaded = False  # True once we've attempted a load (success or fail)
+# Cached OpenAI client (initialised once)
+_openai_client: AsyncOpenAI | None = None
 
 
-def _get_pipeline():
-    """
-    Lazily load and cache the MinerU transformers pipeline.
-    Loading is expensive; it is done only once and the result is cached.
-    Raises RuntimeError on load failure (does not retry infinitely).
-    """
-    global _pipeline, _pipeline_loaded
-
-    if _pipeline_loaded:
-        if _pipeline is None:
-            raise RuntimeError("MinerU pipeline failed to load on startup.")
-        return _pipeline
-
-    logger.info("Loading MinerU pipeline (%s) — this may take a moment…", MODEL_ID)
-    try:
-        from transformers import pipeline  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            "transformers is not installed. Run: pip install transformers"
-        ) from exc
-
-    try:
-        _pipeline = pipeline(
-            "image-text-to-text",
-            model=MODEL_ID,
-        )
-        logger.info("MinerU pipeline loaded successfully.")
-    finally:
-        _pipeline_loaded = True  # mark as attempted even if it failed
-
-    return _pipeline
+def _get_openai_client() -> AsyncOpenAI:
+    global _openai_client
+    if _openai_client is None:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
+        _openai_client = AsyncOpenAI(api_key=api_key)
+    return _openai_client
 
 
 # Extraction prompt sent with every page image
@@ -93,98 +55,56 @@ _EXTRACTION_PROMPT = (
 )
 
 
-async def run_ocr_on_image(image_path: Path) -> str:
-    """
-    Run MinerU on a single image and return the model's text output.
+async def _ocr_image_with_gpt(image_path: Path) -> str:
+    """Send a single image to GPT-4o mini and return the text response."""
+    logger.info("Sending image to GPT-4o mini: %s", image_path)
+    mime = mimetypes.guess_type(str(image_path))[0] or "image/png"
+    image_data = base64.b64encode(image_path.read_bytes()).decode("utf-8")
 
-    The pipeline call is synchronous; it is executed in a thread pool
-    to avoid blocking the FastAPI event loop.
-
-    Args:
-        image_path: Local path to the image file.
-
-    Returns:
-        Raw text/JSON string from the model.
-    """
-    logger.info("Running MinerU OCR on: %s", image_path)
-
-    def _call_sync() -> str:
-        pipe = _get_pipeline()
-
-        # Open image as PIL object so we don't depend on URL accessibility
-        image = Image.open(str(image_path)).convert("RGB")
-
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text",  "text": _EXTRACTION_PROMPT},
-                ],
-            }
-        ]
-
-        result = pipe(text=messages, max_new_tokens=4096)
-
-        # transformers returns a list of dicts; extract the generated text
-        if isinstance(result, list) and result:
-            output = result[0]
-            # Common keys: 'generated_text' (str or list)
-            generated = output.get("generated_text", "")
-            if isinstance(generated, list):
-                # Chat format: list of messages; last assistant turn
-                for msg in reversed(generated):
-                    if isinstance(msg, dict) and msg.get("role") == "assistant":
-                        content = msg.get("content", "")
-                        if isinstance(content, list):
-                            # content blocks
-                            return " ".join(
-                                c.get("text", "") for c in content
-                                if isinstance(c, dict) and c.get("type") == "text"
-                            )
-                        return str(content)
-                # Fallback: last item text
-                last = generated[-1]
-                return str(last.get("content", last)) if isinstance(last, dict) else str(last)
-            return str(generated)
-
-        return str(result)
-
-    loop = asyncio.get_event_loop()
-    text = await loop.run_in_executor(None, _call_sync)
-    logger.debug("MinerU output (%d chars): %.300s…", len(text), text)
+    response = await _get_openai_client().chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_data}", "detail": "high"}},
+                {"type": "text", "text": _EXTRACTION_PROMPT},
+            ],
+        }],
+        max_tokens=4096,
+    )
+    text = response.choices[0].message.content or ""
+    logger.debug("GPT-4o mini output (%d chars): %.300s…", len(text), text)
     return text
 
 
-async def extract_statement(
-    image_paths: List[Path],
-) -> tuple[str, StatementData]:
-    """
-    Run OCR on all pages and parse the combined output into StatementData.
-
-    Args:
-        image_paths: Ordered list of image paths (one per PDF page, or a single image).
-
-    Returns:
-        Tuple of (raw_ocr_text, StatementData).
-    """
+async def extract_statement(image_paths: List[Path]) -> tuple[str, StatementData]:
+    """Run OCR on all pages, parse each page individually, then merge transactions."""
     page_texts: List[str] = []
+    all_transactions: List[Transaction] = []
+    meta: Optional[StatementData] = None
 
     for img_path in image_paths:
         try:
-            text = await run_ocr_on_image(img_path)
+            text = await _ocr_image_with_gpt(img_path)
             page_texts.append(text)
+            page_statement = _parse_ocr_text(text)
+            all_transactions.extend(page_statement.transactions)
+            # Take account meta from the first page that has it
+            if meta is None or (not meta.account_holder and page_statement.account_holder):
+                meta = page_statement
         except Exception as exc:
             logger.error("OCR failed for %s: %s", img_path, exc)
             page_texts.append("")
 
     raw_text = "\n\n".join(page_texts)
-    logger.info(
-        "Total OCR text: %d characters across %d page(s)",
-        len(raw_text), len(image_paths),
-    )
+    logger.info("Total OCR text: %d characters across %d page(s)", len(raw_text), len(image_paths))
 
-    statement = _parse_ocr_text(raw_text)
+    statement = StatementData(
+        account_holder=meta.account_holder if meta else None,
+        bank_name=meta.bank_name if meta else None,
+        account_number=meta.account_number if meta else None,
+        transactions=all_transactions,
+    )
     return raw_text, statement
 
 
@@ -193,42 +113,33 @@ async def extract_statement(
 # ---------------------------------------------------------------------------
 
 def _parse_ocr_text(text: str) -> StatementData:
-    """
-    Convert raw MinerU output into a StatementData object.
-
-    Strategy:
-      1. Try to parse JSON directly (model usually returns structured JSON).
-      2. Fall back to regex + line-by-line extraction.
-    """
+    """Try JSON parse first; fall back to plain-text regex extraction."""
     statement = _try_parse_json(text)
     if statement:
         logger.info("Parsed statement from JSON output")
         return statement
-
     logger.info("JSON parse failed — falling back to plain-text extraction")
     return _parse_plain_text(text)
 
 
 def _try_parse_json(text: str) -> Optional[StatementData]:
     """Try to extract a JSON object from the OCR text."""
-    # Strip markdown code fences if present
     text = re.sub(r"```(?:json)?", "", text).strip()
-
     match = re.search(r"\{[\s\S]+\}", text)
     if not match:
         return None
     try:
         data = json.loads(match.group())
-        # Normalise transactions list
-        txs = []
-        for tx in data.get("transactions", []):
-            txs.append(Transaction(
+        txs = [
+            Transaction(
                 date=tx.get("date"),
                 description=tx.get("description") or "—",
                 debit=_to_float(tx.get("debit")),
                 credit=_to_float(tx.get("credit")),
                 balance=_to_float(tx.get("balance")),
-            ))
+            )
+            for tx in data.get("transactions", [])
+        ]
         return StatementData(
             account_holder=data.get("account_holder"),
             bank_name=data.get("bank_name"),
@@ -241,7 +152,6 @@ def _try_parse_json(text: str) -> Optional[StatementData]:
 
 
 def _to_float(value) -> Optional[float]:
-    """Convert a value to float, returning None on failure."""
     if value is None:
         return None
     try:
@@ -251,10 +161,7 @@ def _to_float(value) -> Optional[float]:
 
 
 def _parse_plain_text(text: str) -> StatementData:
-    """
-    Fallback: extract header fields and transaction rows via regex.
-    Used only when the model does not return valid JSON.
-    """
+    """Fallback: extract header fields and transaction rows via regex."""
     account_holder = _extract_field(text, [
         r"(?:account\s*holder|name)[:\s]+([A-Za-z\s]+?)(?:\n|$)",
         r"(?:customer\s*name)[:\s]+([A-Za-z\s]+?)(?:\n|$)",
@@ -267,14 +174,11 @@ def _parse_plain_text(text: str) -> StatementData:
         r"(?:account\s*(?:no|number|#))[:\s]+([0-9X*\-]+)",
         r"(?:a/?c\s*(?:no|number)?)[:\s]+([0-9X*\-]+)",
     ])
-
-    transactions = _extract_transactions(text)
-
     return StatementData(
         account_holder=account_holder,
         bank_name=bank_name,
         account_number=account_number,
-        transactions=transactions,
+        transactions=_extract_transactions(text),
     )
 
 
@@ -307,11 +211,9 @@ def _extract_transactions(text: str) -> List[Transaction]:
         line = line.strip()
         if not line:
             continue
-        if re.search(r"date|description|narration|debit|credit|balance|withdrawal|deposit",
-                     line, re.IGNORECASE):
+        if re.search(r"date|description|narration|debit|credit|balance|withdrawal|deposit", line, re.IGNORECASE):
             continue
-        parts = re.split(r"\s{2,}|\t", line)
-        tx = _cells_to_transaction(parts)
+        tx = _cells_to_transaction(re.split(r"\s{2,}|\t", line))
         if tx:
             transactions.append(tx)
 
@@ -344,22 +246,13 @@ def _cells_to_transaction(cells: List[str]) -> Optional[Transaction]:
 
     debit = credit = balance = None
     if len(numeric_values) >= 3:
-        debit   = numeric_values[0] or None
-        credit  = numeric_values[1] or None
-        balance = numeric_values[2]
+        debit, credit, balance = numeric_values[0] or None, numeric_values[1] or None, numeric_values[2]
     elif len(numeric_values) == 2:
-        debit   = numeric_values[0] or None
-        balance = numeric_values[1]
+        debit, balance = numeric_values[0] or None, numeric_values[1]
     elif len(numeric_values) == 1:
         balance = numeric_values[0]
 
-    return Transaction(
-        date=date_str,
-        description=description or "—",
-        debit=debit,
-        credit=credit,
-        balance=balance,
-    )
+    return Transaction(date=date_str, description=description or "—", debit=debit, credit=credit, balance=balance)
 
 
 _DATE_PATTERNS = [
@@ -373,7 +266,6 @@ _DATE_PATTERNS = [
 
 
 def _try_parse_date(value: str) -> Optional[str]:
-    from datetime import datetime
     value = value.strip()
     for pattern, fmt in _DATE_PATTERNS:
         m = re.match(pattern, value)

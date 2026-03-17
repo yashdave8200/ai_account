@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables (secrets)
+.env
+.env.*
+
+# Uploaded / temp files
+backend/temp_uploads/
+*.pdf
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+demand_forecasting.ipynb
+
+# Misplaced version files (e.g. =0.17.0)
+=*
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

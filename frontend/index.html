@@ -362,8 +362,8 @@
           throw new Error(data.detail || `HTTP ${res.status}`);
         }
 
-        // Store result and navigate
-        sessionStorage.setItem('statementResult', JSON.stringify(data));
+        // Store only the statement (not raw_ocr_text) to avoid sessionStorage quota limits
+        sessionStorage.setItem('statementResult', JSON.stringify(data.statement));
         setStatus('success', `✓ Extracted ${data.statement?.transactions?.length ?? 0} transaction(s). Redirecting…`);
 
         setTimeout(() => { window.location.href = 'transactions.html'; }, 1200);

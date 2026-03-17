@@ -9,11 +9,13 @@ from pydantic import BaseModel, Field
 
 from backend.models.transaction import StatementData
 
+DEFAULT_TALLY_URL = "https://jordy-unalienable-renda.ngrok-free.dev"
+
 
 class TallyConfig(BaseModel):
     """Configuration for connecting to a Tally ERP instance."""
 
-    tally_url: str = Field("https://jordy-unalienable-renda.ngrok-free.dev", description="Tally HTTP server base URL")
+    tally_url: str = Field(DEFAULT_TALLY_URL, description="Tally HTTP server base URL")
     tally_port: int = Field(9000, description="Tally HTTP server port")
     bank_ledger_name: str = Field(..., description="Name of the bank ledger in Tally")
     default_ledger: str = Field("Suspense Account", description="Default counterpart ledger when description does not map to a known ledger")

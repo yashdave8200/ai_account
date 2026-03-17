@@ -11,10 +11,15 @@ Wires up:
 from __future__ import annotations
 
 import logging
+
+from dotenv import load_dotenv
+load_dotenv()
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 
 from backend.routers.statement import router as statement_router
 from backend.routers.tally import router as tally_router
@@ -71,3 +76,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(statement_router, prefix="/api", tags=["Statements"])
 app.include_router(tally_router, prefix="/api", tags=["Tally"])
+
+
+@app.get("/", include_in_schema=False)
+async def root():
+    return RedirectResponse(url="/app/index.html")
+
+
+app.mount("/app", StaticFiles(directory="frontend"), name="frontend")

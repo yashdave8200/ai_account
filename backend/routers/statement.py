@@ -1,17 +1,9 @@
-"""
-Statement router — exposes all bank-statement-related API endpoints.
-
-Endpoints:
-  POST /upload-statement   Upload and OCR-process a bank statement file.
-  GET  /transactions       Return the most recently extracted transactions.
-  GET  /health             Health check.
-"""
+"""Statement router — upload, OCR-process, and retrieve bank statement transactions."""
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
@@ -32,7 +24,7 @@ router = APIRouter()
 # In-memory store for the most recently extracted statement.
 # For a production system this would be persisted to a database.
 # ---------------------------------------------------------------------------
-_latest_statement: Dict[str, Any] = {}
+_latest_statement: dict = {}
 
 
 @router.post(
@@ -42,18 +34,7 @@ _latest_statement: Dict[str, Any] = {}
     summary="Upload a bank statement and extract transactions via MinerU",
 )
 async def upload_statement(file: UploadFile = File(...)) -> UploadResponse:
-    """
-    Accept a PDF, JPG, or PNG bank statement, run it through GLM-OCR,
-    and return structured transaction data.
-
-    Steps:
-      1. Validate file type.
-      2. Save to temp directory.
-      3. Convert PDF → images if necessary.
-      4. Send image(s) to MinerU (opendatalab/MinerU2.5-2509-1.2B).
-      5. Parse and structure the OCR output.
-      6. Cache result and return JSON.
-    """
+    """Accept a PDF, JPG, or PNG bank statement, OCR it via MinerU, and return structured transactions."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
 
@@ -88,7 +69,7 @@ async def upload_statement(file: UploadFile = File(...)) -> UploadResponse:
             raise HTTPException(status_code=422, detail="Could not extract any pages from the file.")
 
         # Run OCR via MinerU model
-        logger.info("Sending %d image(s) to MinerU…", len(temp_images))
+        logger.info("Sending %d image(s) to GPT-4o mini…", len(temp_images))
         raw_text, statement = await extract_statement(temp_images)
 
         # Cache for GET /transactions

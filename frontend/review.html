@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StatementAI — Classification Review</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#c9a74a",
+            "background-dark": "#0f1624",
+            "accent-red": "#e05c5c",
+            "accent-green": "#4caf7d",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"],
+            "mono": ["IBM Plex Mono", "monospace"],
+          },
+          borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+        },
+      },
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'IBM Plex Mono', monospace; }
+    .material-symbols-outlined { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; display: inline-block; white-space: nowrap; word-wrap: normal; direction: ltr; -webkit-font-feature-settings: 'liga'; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .animate-spin { animation: spin 1s linear infinite; }
+    .editable-input {
+      background: #1c2a40 !important;
+      border: 1px solid #334155 !important;
+      border-radius: 0.375rem;
+      padding: 0.25rem 0.5rem;
+      color: #f1f5f9 !important;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.8rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .editable-input:focus { border-color: #c9a74a !important; }
+    .editable-select {
+      background: #1c2a40 !important;
+      border: 1px solid #334155 !important;
+      border-radius: 0.375rem;
+      padding: 0.25rem 0.5rem;
+      color: #f1f5f9 !important;
+      font-size: 0.8rem;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+      cursor: pointer;
+    }
+    .editable-select:focus { border-color: #c9a74a !important; }
+    .editable-select option { background: #1c2a40; color: #f1f5f9; }
+    .flagged-row { border-left: 3px solid #f59e0b; }
+  </style>
+</head>
+<body class="bg-background-dark font-display text-slate-100 min-h-screen">
+<div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+  <div class="flex h-full grow flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="flex items-center justify-between border-b border-slate-800 px-6 lg:px-20 py-4 bg-background-dark sticky top-0 z-50">
+      <div class="flex items-center gap-3">
+        <div class="text-primary">
+          <span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+        </div>
+        <h2 class="text-white text-xl font-extrabold leading-tight tracking-tight">StatementAI</h2>
+      </div>
+      <div class="flex flex-1 justify-end gap-6 items-center">
+        <nav class="hidden md:flex items-center gap-8">
+          <a class="text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="index.html">Upload</a>
+          <a href="/docs" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">API Docs</a>
+          <a href="/api/health" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">Health</a>
+        </nav>
+        <a href="index.html" class="flex min-w-[120px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-background-dark text-sm font-bold transition-transform active:scale-95 shadow-lg shadow-primary/20 no-underline">
+          <span class="material-symbols-outlined mr-2 text-lg" style="font-size:1.1rem">upload_file</span>
+          <span>Upload New</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex flex-1 justify-center py-10 px-6 lg:px-20">
+      <div class="flex flex-col max-w-[1200px] flex-1 gap-8">
+
+        <!-- Page Header -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2 text-amber-400 mb-1">
+            <span class="material-symbols-outlined text-sm" style="font-size:1rem">rate_review</span>
+            <span class="text-xs font-bold uppercase tracking-widest">Review Required</span>
+          </div>
+          <h1 class="text-white text-4xl font-black leading-tight tracking-tight">Classification Review</h1>
+          <p class="text-slate-400 text-lg">Verify AI-classified ledger names before pushing to Tally ERP</p>
+        </div>
+
+        <!-- No data state -->
+        <div id="noDataState" class="hidden flex-col items-center justify-center gap-4 py-24 text-slate-500">
+          <span class="material-symbols-outlined" style="font-size:3.5rem;color:#2a3a55">analytics</span>
+          <p class="text-base">No classification data found. Please run classification from the transactions page.</p>
+          <a href="transactions.html" class="mt-2 flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-background-dark font-bold hover:brightness-110 transition-all no-underline">
+            <span class="material-symbols-outlined" style="font-size:1.1rem">arrow_back</span>
+            Back to Transactions
+          </a>
+        </div>
+
+        <!-- Account Summary Card -->
+        <div id="accountCard" class="hidden grid grid-cols-1 md:grid-cols-3 gap-0 rounded-xl border border-slate-800 bg-[#161d2b] overflow-hidden shadow-xl shadow-black/20">
+          <div class="flex flex-col gap-1 p-6 border-b md:border-b-0 md:border-r border-slate-800">
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Account Holder</p>
+            <p id="accountHolder" class="text-primary font-mono text-lg font-semibold">—</p>
+          </div>
+          <div class="flex flex-col gap-1 p-6 border-b md:border-b-0 md:border-r border-slate-800">
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Bank Name</p>
+            <p id="bankName" class="text-primary font-mono text-lg font-semibold uppercase">—</p>
+          </div>
+          <div class="flex flex-col gap-1 p-6">
+            <p class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Account Number</p>
+            <p id="accountNumber" class="text-primary font-mono text-lg font-semibold">—</p>
+          </div>
+        </div>
+
+        <!-- Stats Strip -->
+        <div id="statsStrip" class="hidden flex-wrap items-center gap-6 p-5 rounded-xl bg-primary/10 border border-primary/20">
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-primary" style="font-size:1.25rem">receipt_long</span>
+            <span class="text-slate-200 font-bold"><span id="totalCount">0</span> <span class="font-normal opacity-70">transactions</span></span>
+          </div>
+          <div class="h-4 w-px bg-primary/30 hidden sm:block"></div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-bold border border-emerald-500/20">
+              <span class="material-symbols-outlined" style="font-size:0.8rem">check_circle</span> High
+            </span>
+            <span id="highCount" class="text-slate-200 font-mono text-sm font-bold">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-xs font-bold border border-amber-500/20">
+              <span class="material-symbols-outlined" style="font-size:0.8rem">warning</span> Medium
+            </span>
+            <span id="medCount" class="text-slate-200 font-mono text-sm font-bold">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/15 text-red-400 text-xs font-bold border border-red-500/20">
+              <span class="material-symbols-outlined" style="font-size:0.8rem">error</span> Low
+            </span>
+            <span id="lowCount" class="text-slate-200 font-mono text-sm font-bold">0</span>
+          </div>
+          <div class="h-4 w-px bg-primary/30 hidden sm:block"></div>
+          <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-400" style="font-size:1rem">flag</span>
+            <span class="text-slate-400 text-sm">Flagged:</span>
+            <span id="flaggedCount" class="text-amber-400 font-mono text-sm font-bold">0</span>
+          </div>
+        </div>
+
+        <!-- Review Table -->
+        <div id="tableSection" class="hidden bg-[#0f1624] rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-[#161d2b] border-b border-slate-800">
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Date</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Description</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Amount</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Ledger Name</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Group</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Confidence</th>
+                  <th class="px-4 py-4 text-xs font-bold uppercase tracking-wider text-slate-400">Status</th>
+                </tr>
+              </thead>
+              <tbody id="reviewBody" class="divide-y divide-slate-800/50"></tbody>
+            </table>
+          </div>
+          <!-- Pagination footer -->
+          <div class="px-6 py-4 bg-[#161d2b] border-t border-slate-800 flex justify-between items-center">
+            <span id="paginationInfo" class="text-xs text-slate-400"></span>
+            <div class="flex gap-2">
+              <button id="prevBtn" onclick="changePage(-1)" class="p-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed" disabled>
+                <span class="material-symbols-outlined text-sm" style="font-size:1rem">chevron_left</span>
+              </button>
+              <button id="nextBtn" onclick="changePage(1)" class="p-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed">
+                <span class="material-symbols-outlined text-sm" style="font-size:1rem">chevron_right</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tally result banner -->
+        <div id="tallyBanner" class="hidden rounded-xl p-4 text-sm font-mono border mb-2"></div>
+
+        <!-- Bottom Action Bar -->
+        <div id="actions" class="hidden flex-wrap gap-4 justify-between items-center mb-10">
+          <a href="transactions.html" class="flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-slate-700 text-slate-300 font-bold hover:bg-slate-800 transition-colors no-underline">
+            <span class="material-symbols-outlined" style="font-size:1.1rem">arrow_back</span>
+            <span>Back</span>
+          </a>
+          <div class="flex gap-3">
+            <button id="csvBtn" class="flex items-center gap-2 px-6 py-3 rounded-xl border-2 border-slate-700 text-slate-300 font-bold hover:bg-slate-800 transition-colors">
+              <span class="material-symbols-outlined" style="font-size:1.1rem">download</span>
+              <span>Download CSV</span>
+            </button>
+            <button id="confirmBtn" class="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-background-dark font-bold hover:brightness-110 transition-all shadow-xl shadow-primary/20">
+              <span class="material-symbols-outlined" style="font-size:1.25rem">send</span>
+              <span>Confirm &amp; Push to Tally</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Tally config modal -->
+<div id="tallyModal" class="hidden fixed inset-0 bg-black/65 z-[200] flex items-center justify-center">
+  <div class="bg-[#141e30] border border-slate-800 rounded-xl p-8 w-[min(480px,90vw)] flex flex-col gap-5">
+    <div>
+      <h2 class="text-white text-2xl font-black">Push to Tally ERP</h2>
+      <p class="text-slate-400 text-sm mt-1">Enter your Tally ledger configuration before pushing entries.</p>
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Bank Ledger Name *</label>
+      <input type="text" id="cfgBankLedger" placeholder="e.g. HDFC Bank Current Account"
+        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Tally URL</label>
+      <input type="text" id="cfgTallyUrl" value="http://192.168.7.216:9000"
+        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Default Counterpart Ledger</label>
+      <input type="text" id="cfgDefaultLedger" value="Suspense Account"
+        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Company Name (optional)</label>
+      <input type="text" id="cfgCompany" placeholder="Leave blank to use active company"
+        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
+    </div>
+
+    <div class="flex gap-3 justify-end mt-2">
+      <button id="modalCancelBtn" class="px-6 py-2.5 rounded-full border border-slate-700 text-slate-400 text-sm font-medium hover:text-slate-200 hover:border-slate-500 transition-colors">
+        Cancel
+      </button>
+      <button id="modalPushBtn" class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-background-dark text-sm font-bold hover:brightness-110 transition-all">
+        <span class="material-symbols-outlined" style="font-size:1rem">send</span>
+        Push Entries
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API_BASE = '/api';
+  const PAGE_SIZE = 15;
+  const ALLOWED_GROUPS = [
+    'Direct Expenses', 'Indirect Expenses', 'Direct Income', 'Indirect Income',
+    'Sundry Debtors', 'Sundry Creditors', 'Loans (Liability)', 'Duties & Taxes',
+    'Bank Accounts', 'Cash-in-Hand', 'Current Assets', 'Current Liabilities', 'Capital Account',
+  ];
+
+  let _statement = null;
+  let _reviewData = [];   // { ...classified[i], edited_ledger, edited_group }
+  let _currentPage = 1;
+
+  /* ── Bootstrap ─────────────────────────────────────────────── */
+  function init() {
+    const raw = sessionStorage.getItem('classificationResult');
+    if (!raw) {
+      document.getElementById('noDataState').classList.remove('hidden');
+      document.getElementById('noDataState').classList.add('flex');
+      return;
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (_) {
+      document.getElementById('noDataState').classList.remove('hidden');
+      document.getElementById('noDataState').classList.add('flex');
+      return;
+    }
+
+    _statement = parsed.statement;
+    const classified = parsed.classified || [];
+
+    _reviewData = classified.map(c => ({
+      ...c,
+      edited_ledger: c.ledger_name || '',
+      edited_group:  c.group || ALLOWED_GROUPS[0],
+    }));
+
+    renderAccountCard();
+    renderStats();
+    show('accountCard');
+    show('statsStrip');
+    show('tableSection');
+    show('actions');
+
+    // Pre-fill bank ledger from bank name
+    const bn = _statement?.bank_name;
+    if (bn && bn !== '—') document.getElementById('cfgBankLedger').value = bn;
+
+    _currentPage = 1;
+    renderPage();
+  }
+
+  function show(id) {
+    const el = document.getElementById(id);
+    el.classList.remove('hidden');
+    if (id === 'statsStrip' || id === 'actions') {
+      el.classList.add('flex');
+    }
+  }
+
+  /* ── Account card ───────────────────────────────────────────── */
+  function renderAccountCard() {
+    document.getElementById('accountHolder').textContent = _statement?.account_holder || '—';
+    document.getElementById('bankName').textContent      = _statement?.bank_name      || '—';
+    document.getElementById('accountNumber').textContent = _statement?.account_number || '—';
+  }
+
+  /* ── Stats ──────────────────────────────────────────────────── */
+  function renderStats() {
+    const high    = _reviewData.filter(r => r.confidence === 'high').length;
+    const med     = _reviewData.filter(r => r.confidence === 'medium').length;
+    const low     = _reviewData.filter(r => r.confidence === 'low').length;
+    const flagged = _reviewData.filter(r => r.validation_status === 'flagged').length;
+
+    document.getElementById('totalCount').textContent   = _reviewData.length;
+    document.getElementById('highCount').textContent    = high;
+    document.getElementById('medCount').textContent     = med;
+    document.getElementById('lowCount').textContent     = low;
+    document.getElementById('flaggedCount').textContent = flagged;
+  }
+
+  /* ── Pagination ─────────────────────────────────────────────── */
+  function renderPage() {
+    const total      = _reviewData.length;
+    const totalPages = Math.ceil(total / PAGE_SIZE);
+    const start      = (_currentPage - 1) * PAGE_SIZE;
+    const end        = Math.min(start + PAGE_SIZE, total);
+    const pageItems  = _reviewData.slice(start, end);
+    const txs        = (_statement?.transactions || []).slice(start, end);
+
+    const tbody = document.getElementById('reviewBody');
+    tbody.innerHTML = pageItems.map((r, relIdx) => {
+      const absIdx = start + relIdx;
+      const tx     = txs[relIdx] || {};
+      const needsAttention = r.confidence === 'low' || r.validation_status === 'flagged';
+
+      const amountVal = tx.credit != null ? tx.credit : tx.debit;
+      const amountCls = tx.credit != null ? 'text-accent-green' : 'text-accent-red';
+      const amountPfx = tx.credit != null ? '+' : '-';
+      const amountStr = amountVal != null
+        ? `${amountPfx}₹${Number(amountVal).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : '—';
+
+      const confBadge = confidenceBadge(r.confidence);
+      const validIcon = validationIcon(r.validation_status, r.notes);
+
+      const groupOptions = ALLOWED_GROUPS.map(g =>
+        `<option value="${escHtml(g)}" ${r.edited_group === g ? 'selected' : ''}>${escHtml(g)}</option>`
+      ).join('');
+
+      return `
+        <tr class="hover:bg-white/5 transition-colors ${needsAttention ? 'flagged-row' : ''}">
+          <td class="px-4 py-4 text-sm text-slate-400 font-mono whitespace-nowrap">${escHtml(tx.date || '—')}</td>
+          <td class="px-4 py-4 text-sm font-medium text-slate-100 max-w-xs">
+            <span title="${escHtml(tx.description || '')}" class="block truncate max-w-[220px]">${escHtml(tx.description || '—')}</span>
+          </td>
+          <td class="px-4 py-4 text-sm font-mono font-bold ${amountCls} whitespace-nowrap">${escHtml(amountStr)}</td>
+          <td class="px-4 py-4 min-w-[180px]">
+            <input type="text" class="editable-input" data-idx="${absIdx}" data-field="ledger"
+              value="${escHtml(r.edited_ledger)}" placeholder="Ledger name…" />
+          </td>
+          <td class="px-4 py-4 min-w-[180px]">
+            <select class="editable-select" data-idx="${absIdx}" data-field="group">
+              ${groupOptions}
+            </select>
+          </td>
+          <td class="px-4 py-4">${confBadge}</td>
+          <td class="px-4 py-4">${validIcon}</td>
+        </tr>
+      `;
+    }).join('');
+
+    // Attach change listeners
+    tbody.querySelectorAll('.editable-input').forEach(input => {
+      input.addEventListener('input', e => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        _reviewData[idx].edited_ledger = e.target.value;
+      });
+    });
+    tbody.querySelectorAll('.editable-select').forEach(sel => {
+      sel.addEventListener('change', e => {
+        const idx = parseInt(e.target.dataset.idx, 10);
+        _reviewData[idx].edited_group = e.target.value;
+      });
+    });
+
+    document.getElementById('paginationInfo').textContent =
+      `Showing ${start + 1}–${end} of ${total} results`;
+    document.getElementById('prevBtn').disabled = _currentPage <= 1;
+    document.getElementById('nextBtn').disabled = _currentPage >= totalPages;
+  }
+
+  function changePage(delta) {
+    const totalPages = Math.ceil(_reviewData.length / PAGE_SIZE);
+    _currentPage = Math.max(1, Math.min(_currentPage + delta, totalPages));
+    renderPage();
+  }
+
+  /* ── Badge helpers ──────────────────────────────────────────── */
+  function confidenceBadge(conf) {
+    const map = {
+      high:   'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
+      medium: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+      low:    'bg-red-500/15 text-red-400 border-red-500/20',
+    };
+    const cls = map[conf] || map.low;
+    return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${cls} capitalize">${escHtml(conf || 'low')}</span>`;
+  }
+
+  function validationIcon(status, notes) {
+    if (status === 'flagged') {
+      const tip = escHtml(notes || 'Flagged for review');
+      return `<span title="${tip}" class="flex items-center gap-1 text-amber-400 cursor-help">
+        <span class="material-symbols-outlined" style="font-size:1.1rem">warning</span>
+      </span>`;
+    }
+    return `<span class="flex items-center gap-1 text-emerald-400">
+      <span class="material-symbols-outlined" style="font-size:1.1rem">check_circle</span>
+    </span>`;
+  }
+
+  /* ── Helpers ─────────────────────────────────────────────────── */
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── Tally modal ─────────────────────────────────────────────── */
+  const tallyModal     = document.getElementById('tallyModal');
+  const modalCancelBtn = document.getElementById('modalCancelBtn');
+  const modalPushBtn   = document.getElementById('modalPushBtn');
+  const confirmBtn     = document.getElementById('confirmBtn');
+
+  confirmBtn.addEventListener('click', () => {
+    tallyModal.classList.remove('hidden');
+    tallyModal.classList.add('flex');
+  });
+
+  modalCancelBtn.addEventListener('click', closeModal);
+  tallyModal.addEventListener('click', e => { if (e.target === tallyModal) closeModal(); });
+  modalPushBtn.addEventListener('click', pushToTally);
+
+  function closeModal() {
+    tallyModal.classList.add('hidden');
+    tallyModal.classList.remove('flex');
+  }
+
+  async function pushToTally() {
+    const bankLedger    = document.getElementById('cfgBankLedger').value.trim();
+    const rawUrl        = document.getElementById('cfgTallyUrl').value.trim() || 'http://localhost:9000';
+    const defaultLedger = document.getElementById('cfgDefaultLedger').value.trim() || 'Suspense Account';
+    const company       = document.getElementById('cfgCompany').value.trim() || null;
+
+    if (!bankLedger) { document.getElementById('cfgBankLedger').focus(); return; }
+    if (!_statement) {
+      showBanner('error', 'No statement data. Please go back and upload again.');
+      closeModal();
+      return;
+    }
+
+    let tallyUrl = rawUrl;
+    let tallyPort = 9000;
+    try {
+      const parsed = new URL(rawUrl);
+      tallyPort = parseInt(parsed.port, 10) || (parsed.protocol === 'https:' ? 443 : 80);
+      tallyUrl  = `${parsed.protocol}//${parsed.hostname}`;
+    } catch (_) { /* leave defaults */ }
+
+    modalPushBtn.disabled = true;
+    modalPushBtn.textContent = 'Pushing…';
+
+    // Build modified transactions with human-reviewed counterpart_ledger
+    const modifiedTxs = (_statement.transactions || []).map((tx, i) => ({
+      ...tx,
+      counterpart_ledger: (_reviewData[i]?.edited_ledger) || undefined,
+    }));
+
+    try {
+      const res = await fetch(`${API_BASE}/push-to-tally`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          statement: { ..._statement, transactions: modifiedTxs },
+          config: {
+            tally_url: tallyUrl,
+            tally_port: tallyPort,
+            bank_ledger_name: bankLedger,
+            default_ledger: defaultLedger,
+            company_name: company,
+          },
+        }),
+      });
+
+      const data = await res.json();
+      closeModal();
+
+      if (data.status === 'success') {
+        let detail = data.message;
+        if (data.result?.error_details?.length) detail += ' | Warnings: ' + data.result.error_details.join('; ');
+        showBanner('success', '✓ ' + detail);
+      } else {
+        let detail = data.message;
+        if (data.result?.error_details?.length) detail += ' — ' + data.result.error_details.join('; ');
+        showBanner('error', '✗ ' + detail);
+      }
+    } catch (err) {
+      closeModal();
+      showBanner('error', '✗ Network error: ' + err.message);
+    } finally {
+      modalPushBtn.disabled = false;
+      modalPushBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1rem">send</span> Push Entries';
+    }
+  }
+
+  function showBanner(type, message) {
+    const banner = document.getElementById('tallyBanner');
+    banner.className = type === 'success'
+      ? 'rounded-xl p-4 text-sm font-mono border mb-2 bg-accent-green/10 border-accent-green/30 text-accent-green'
+      : 'rounded-xl p-4 text-sm font-mono border mb-2 bg-accent-red/10 border-accent-red/30 text-accent-red';
+    banner.textContent = message;
+    banner.classList.remove('hidden');
+    banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  init();
+
+  /* ── CSV export ─────────────────────────────────────────────── */
+  document.getElementById('csvBtn').addEventListener('click', () => {
+    if (!_reviewData.length) return;
+    const txs = _statement?.transactions || [];
+    const header = 'Date,Description,Debit,Credit,Balance,Ledger Name,Group,Confidence\n';
+    const rows = _reviewData.map((r, i) => {
+      const tx = txs[i] || {};
+      return [
+        tx.date || '',
+        `"${(tx.description || '').replace(/"/g, '""')}"`,
+        tx.debit  ?? '',
+        tx.credit ?? '',
+        tx.balance ?? '',
+        `"${(r.edited_ledger || '').replace(/"/g, '""')}"`,
+        `"${(r.edited_group  || '').replace(/"/g, '""')}"`,
+        r.confidence || '',
+      ].join(',');
+    }).join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'classified_transactions.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>

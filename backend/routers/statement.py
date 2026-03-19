@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from backend.models.transaction import HealthResponse, StatementData, UploadResponse
+from backend.services.dummy_data import get_demo_statement
 from backend.services.ocr_service import extract_statement
 from backend.utils.file_handler import (
     cleanup_files,
@@ -101,6 +102,26 @@ async def upload_statement(file: UploadFile = File(...)) -> UploadResponse:
     finally:
         # Always clean up temp files (PDF source + generated page images)
         cleanup_files(temp_file, *temp_images)
+
+
+@router.get(
+    "/demo-statement",
+    response_model=UploadResponse,
+    summary="Load a pre-built ICICI Bank demo statement (no OCR required)",
+)
+async def demo_statement() -> UploadResponse:
+    """Return a realistic ICICI Bank demo statement with 25 transactions for testing."""
+    statement = get_demo_statement()
+    global _latest_statement
+    _latest_statement = statement.model_dump()
+    logger.info("Demo statement loaded — %d transactions", len(statement.transactions))
+    return UploadResponse(
+        status="success",
+        message=f"Demo statement loaded — {len(statement.transactions)} transactions.",
+        filename="demo_icici_feb2026.pdf",
+        statement=statement,
+        raw_ocr_text=None,
+    )
 
 
 @router.get(

@@ -48,7 +48,7 @@ class TallyService:
             if tx.debit is None and tx.credit is None:
                 logger.warning("Skipping transaction with no debit/credit: %s", tx.description)
                 continue
-            counterpart = self._guess_counterpart_ledger(tx.description or "", self._config.default_ledger)
+            counterpart = tx.counterpart_ledger or self._guess_counterpart_ledger(tx.description or "", self._config.default_ledger)
             voucher_xmls.append(self._build_voucher_xml(tx, self._config.bank_ledger_name, counterpart))
 
         if not voucher_xmls:

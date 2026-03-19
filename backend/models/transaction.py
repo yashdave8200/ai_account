@@ -18,6 +18,10 @@ class Transaction(BaseModel):
     debit: Optional[float] = Field(None, description="Debit amount (money out)")
     credit: Optional[float] = Field(None, description="Credit amount (money in)")
     balance: Optional[float] = Field(None, description="Running account balance after transaction")
+    counterpart_ledger: Optional[str] = Field(
+        None,
+        description="Human-reviewed counterpart ledger name; overrides auto-detection in Tally push"
+    )
 
 
 class StatementData(BaseModel):

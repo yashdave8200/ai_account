@@ -1,3 +1,4 @@
+
 # Bank Statement Extractor
 
 A minimal working prototype that accepts uploaded bank statements (PDF, JPG, PNG), sends them to the **GLM-OCR** HuggingFace Space for document understanding, and returns structured transaction JSON.

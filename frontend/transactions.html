@@ -48,8 +48,8 @@
       <div class="flex flex-1 justify-end gap-6 items-center">
         <nav class="hidden md:flex items-center gap-8">
           <a class="text-slate-300 text-sm font-medium hover:text-primary transition-colors" href="index.html">Upload</a>
-          <a href="http://localhost:8000/docs" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">API Docs</a>
-          <a href="http://localhost:8000/api/health" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">Health</a>
+          <a href="/docs" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">API Docs</a>
+          <a href="/api/health" target="_blank" class="text-slate-300 text-sm font-medium hover:text-primary transition-colors">Health</a>
         </nav>
         <a href="index.html" class="flex min-w-[120px] cursor-pointer items-center justify-center rounded-lg h-10 px-5 bg-primary text-background-dark text-sm font-bold transition-transform active:scale-95 shadow-lg shadow-primary/20 no-underline">
           <span class="material-symbols-outlined mr-2 text-lg" style="font-size:1.1rem">upload_file</span>
@@ -160,7 +160,7 @@
           </button>
           <button id="tallyBtn" class="flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-background-dark font-bold hover:brightness-110 transition-all shadow-xl shadow-primary/20">
             <span class="material-symbols-outlined" style="font-size:1.25rem">account_balance</span>
-            <span>Push to Tally</span>
+            <span>Review &amp; Push to Tally</span>
           </button>
         </div>
 
@@ -172,52 +172,9 @@
   </div>
 </div>
 
-<!-- Tally config modal -->
-<div id="tallyModal" class="hidden fixed inset-0 bg-black/65 z-[200] flex items-center justify-center">
-  <div class="bg-[#141e30] border border-slate-800 rounded-xl p-8 w-[min(480px,90vw)] flex flex-col gap-5">
-    <div>
-      <h2 class="text-white text-2xl font-black">Push to Tally ERP</h2>
-      <p class="text-slate-400 text-sm mt-1">Enter your Tally ledger configuration before pushing entries.</p>
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Bank Ledger Name *</label>
-      <input type="text" id="cfgBankLedger" placeholder="e.g. HDFC Bank Current Account"
-        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Tally URL</label>
-      <input type="text" id="cfgTallyUrl" value="http://192.168.7.216:9000"
-        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Default Counterpart Ledger</label>
-      <input type="text" id="cfgDefaultLedger" value="Suspense Account"
-        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-slate-400 text-xs font-bold uppercase tracking-wider">Company Name (optional)</label>
-      <input type="text" id="cfgCompany" placeholder="Leave blank to use active company"
-        class="bg-[#1c2a40] border border-slate-700 rounded-lg px-3 py-2.5 text-slate-100 font-mono text-sm outline-none focus:border-primary/60 w-full" />
-    </div>
-
-    <div class="flex gap-3 justify-end mt-2">
-      <button id="modalCancelBtn" class="px-6 py-2.5 rounded-full border border-slate-700 text-slate-400 text-sm font-medium hover:text-slate-200 hover:border-slate-500 transition-colors">
-        Cancel
-      </button>
-      <button id="modalPushBtn" class="flex items-center gap-2 px-6 py-2.5 rounded-full bg-primary text-background-dark text-sm font-bold hover:brightness-110 transition-all">
-        <span class="material-symbols-outlined" style="font-size:1rem">send</span>
-        Push Entries
-      </button>
-    </div>
-  </div>
-</div>
 
 <script>
-  const API_BASE = 'http://localhost:8000/api';
+  const API_BASE = '/api';
   const PAGE_SIZE = 15;
   let _currentStatement = null;
   let _allTransactions = [];
@@ -354,98 +311,49 @@
 
   loadData();
 
-  /* ── Tally integration ──────────────────────────────────────── */
-  const tallyBtn      = document.getElementById('tallyBtn');
-  const tallyModal    = document.getElementById('tallyModal');
-  const modalCancelBtn = document.getElementById('modalCancelBtn');
-  const modalPushBtn  = document.getElementById('modalPushBtn');
+  /* ── Classify & redirect to review ─────────────────────────── */
+  const tallyBtn = document.getElementById('tallyBtn');
 
-  tallyBtn.addEventListener('click', () => {
-    const bankNameEl    = document.getElementById('bankName');
-    const cfgBankLedger = document.getElementById('cfgBankLedger');
-    if (bankNameEl && cfgBankLedger && !cfgBankLedger.value) {
-      const bn = bankNameEl.textContent.trim();
-      if (bn && bn !== '—') cfgBankLedger.value = bn;
-    }
-    tallyModal.classList.remove('hidden');
-    tallyModal.classList.add('flex');
-  });
+  tallyBtn.addEventListener('click', classifyAndReview);
 
-  modalCancelBtn.addEventListener('click', closeModal);
-
-  tallyModal.addEventListener('click', (e) => {
-    if (e.target === tallyModal) closeModal();
-  });
-
-  modalPushBtn.addEventListener('click', pushToTally);
-
-  function closeModal() {
-    tallyModal.classList.add('hidden');
-    tallyModal.classList.remove('flex');
-  }
-
-  async function pushToTally() {
-    const bankLedger    = document.getElementById('cfgBankLedger').value.trim();
-    const rawUrl        = document.getElementById('cfgTallyUrl').value.trim() || 'http://localhost:9000';
-    const defaultLedger = document.getElementById('cfgDefaultLedger').value.trim() || 'Suspense Account';
-    const company       = document.getElementById('cfgCompany').value.trim() || null;
-
-    if (!bankLedger) {
-      document.getElementById('cfgBankLedger').focus();
-      return;
-    }
-
-    if (!_currentStatement) {
+  async function classifyAndReview() {
+    if (!_currentStatement || _allTransactions.length === 0) {
       showBanner('error', 'No statement data loaded. Please upload a bank statement first.');
-      closeModal();
       return;
     }
 
-    let tallyUrl = rawUrl;
-    let tallyPort = 9000;
-    try {
-      const parsed = new URL(rawUrl);
-      tallyPort = parseInt(parsed.port, 10) || (parsed.protocol === 'https:' ? 443 : 80);
-      tallyUrl  = `${parsed.protocol}//${parsed.hostname}`;
-    } catch (_) { /* leave defaults */ }
-
-    modalPushBtn.disabled = true;
-    modalPushBtn.textContent = 'Pushing…';
+    tallyBtn.disabled = true;
+    tallyBtn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:1.25rem">autorenew</span> <span>Classifying…</span>';
 
     try {
-      const res = await fetch(`${API_BASE}/push-to-tally`, {
+      const payload = {
+        transactions: _allTransactions.map(tx => ({
+          narration: tx.description,
+          amount: tx.credit != null ? tx.credit : -(tx.debit ?? 0),
+        })),
+      };
+
+      const res = await fetch(`${API_BASE}/classify-transactions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          statement: _currentStatement,
-          config: {
-            tally_url: tallyUrl,
-            tally_port: tallyPort,
-            bank_ledger_name: bankLedger,
-            default_ledger: defaultLedger,
-            company_name: company,
-          },
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      closeModal();
-
-      if (data.status === 'success') {
-        let detail = data.message;
-        if (data.result?.error_details?.length) detail += ' | Warnings: ' + data.result.error_details.join('; ');
-        showBanner('success', '✓ ' + detail);
-      } else {
-        let detail = data.message;
-        if (data.result?.error_details?.length) detail += ' — ' + data.result.error_details.join('; ');
-        showBanner('error', '✗ ' + detail);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
       }
+
+      const data = await res.json();
+      sessionStorage.setItem('classificationResult', JSON.stringify({
+        statement: _currentStatement,
+        classified: data.classified,
+      }));
+      window.location.href = 'review.html';
     } catch (err) {
-      closeModal();
-      showBanner('error', '✗ Network error: ' + err.message);
-    } finally {
-      modalPushBtn.disabled = false;
-      modalPushBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1rem">send</span> Push Entries';
+      showBanner('error', '✗ Classification failed: ' + err.message);
+      tallyBtn.disabled = false;
+      tallyBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:1.25rem">account_balance</span> <span>Review &amp; Push to Tally</span>';
     }
   }
 

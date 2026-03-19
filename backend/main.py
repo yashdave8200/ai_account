@@ -23,6 +23,7 @@ from fastapi.responses import RedirectResponse
 
 from backend.routers.statement import router as statement_router
 from backend.routers.tally import router as tally_router
+from backend.routers.classifier import router as classifier_router
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -76,6 +77,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 app.include_router(statement_router, prefix="/api", tags=["Statements"])
 app.include_router(tally_router, prefix="/api", tags=["Tally"])
+app.include_router(classifier_router, prefix="/api", tags=["Classifier"])
 
 
 @app.get("/", include_in_schema=False)
